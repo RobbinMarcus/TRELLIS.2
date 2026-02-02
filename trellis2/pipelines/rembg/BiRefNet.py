@@ -7,9 +7,27 @@ from PIL import Image
 
 class BiRefNet:
     def __init__(self, model_name: str = "ZhengPeng7/BiRefNet"):
-        self.model = AutoModelForImageSegmentation.from_pretrained(
-            model_name, trust_remote_code=True
-        )
+        # Monkey-patch to fix transformers compatibility issue
+        from transformers import modeling_utils
+        original_mark = getattr(modeling_utils.PreTrainedModel, 'mark_tied_weights_as_initialized', None)
+
+        def patched_mark(self):
+            if not hasattr(self, 'all_tied_weights_keys'):
+                self.all_tied_weights_keys = {}
+            if original_mark:
+                return original_mark(self)
+
+        modeling_utils.PreTrainedModel.mark_tied_weights_as_initialized = patched_mark
+
+        try:
+            self.model = AutoModelForImageSegmentation.from_pretrained(
+                "ZhengPeng7/BiRefNet", trust_remote_code=True
+            )
+        finally:
+            # Restore original method
+            if original_mark:
+                modeling_utils.PreTrainedModel.mark_tied_weights_as_initialized = original_mark
+
         self.model.eval()
         self.transform_image = transforms.Compose(
             [
@@ -31,6 +49,11 @@ class BiRefNet:
     def __call__(self, image: Image.Image) -> Image.Image:
         image_size = image.size
         input_images = self.transform_image(image).unsqueeze(0).to("cuda")
+
+        # Match input dtype to model dtype
+        model_dtype = next(self.model.parameters()).dtype
+        input_images = input_images.to(dtype=model_dtype)
+
         # Prediction
         with torch.no_grad():
             preds = self.model(input_images)[-1].sigmoid().cpu()
