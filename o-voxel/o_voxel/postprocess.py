@@ -233,21 +233,28 @@ def to_glb(
     rast = torch.zeros((1, texture_size, texture_size, 4), device='cuda', dtype=torch.float32)
     
     # Rasterize in chunks to save memory
-    for i in range(0, out_faces.shape[0], 100000):
+    for i in range(0, out_faces.shape[0], 50000):
         rast_chunk, _ = dr.rasterize(
-            ctx, uvs_rast, out_faces[i:i+100000],
+            ctx, uvs_rast, out_faces[i:i+50000],
             resolution=[texture_size, texture_size],
         )
         mask_chunk = rast_chunk[..., 3:4] > 0
         rast_chunk[..., 3:4] += i # Store face ID in alpha channel
         rast = torch.where(mask_chunk, rast_chunk, rast)
+        del rast_chunk
+        torch.cuda.empty_cache()
     
     # Mask of valid pixels in texture
     mask = rast[0, ..., 3] > 0
+    torch.cuda.empty_cache()
     
     # Interpolate 3D positions in UV space (finding 3D coord for every texel)
     pos = dr.interpolate(out_vertices.unsqueeze(0), rast, out_faces)[0][0]
+    del rast
+    torch.cuda.empty_cache()
     valid_pos = pos[mask]
+    del pos
+    torch.cuda.empty_cache()
     
     # Map these positions back to the *original* high-res mesh to get accurate attributes
     # This corrects geometric errors introduced by simplification/remeshing
