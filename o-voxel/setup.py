@@ -22,6 +22,13 @@ else:
     archs = os.getenv("GPU_ARCHS", "native").split(";")
     cc_flag = [f"--offload-arch={arch}" for arch in archs]
 
+if os.name == 'nt':
+    cxx_args = ["/O2", "/std:c++17", "/wd4838"]
+    nvcc_args = ["-O3", "-std=c++17", "-Xcompiler", "/wd4838"] + cc_flag 
+else:
+    cxx_args = ["-O3", "-std=c++17"]
+    nvcc_args = ["-O3", "-std=c++17"] + cc_flag
+
 setup(
     name="o_voxel",
     packages=[
@@ -55,9 +62,10 @@ setup(
             include_dirs=[
                 os.path.join(ROOT, "third_party/eigen"),
             ],
+
             extra_compile_args={
-                "cxx": ["-O3", "-std=c++17"],
-                "nvcc": ["-O3","-std=c++17"] + cc_flag,
+                "cxx": cxx_args,
+                "nvcc": nvcc_args,
             }
         )
     ],

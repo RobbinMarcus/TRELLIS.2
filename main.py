@@ -92,9 +92,9 @@ def remove_backgrounds():
             image = Image.open(img_path).convert("RGB")
             image_no_bg = birefnet(image)
             image_no_bg.save(output_path)
-            print(f"  → Saved to: {output_path}")
+            print(f"  -> Saved to: {output_path}")
         except Exception as e:
-            print(f"  ✗ Failed: {e}")
+            print(f"  X Failed: {e}")
 
     # Cleanup model after all images processed
     del birefnet
@@ -155,7 +155,7 @@ def process_images():
             image = Image.open(img_path)
 
             # Run the workflow
-            print(f"  → Generating 3D structure...")
+            print(f"  -> Generating 3D structure...")
             results = pipeline.run(
                 image,
                 pipeline_type=CONFIG_RESOLUTION,
@@ -163,13 +163,13 @@ def process_images():
             )
             mesh = results[0]
 
-            print(f"  → Structure complete")
+            print(f"  -> Structure complete")
 
             # Simplify if needed
             mesh.simplify(16777216) # nvdiffrast limit
 
             # Export to GLB
-            print(f"  → Exporting mesh to GLB...")
+            print(f"  -> Exporting mesh to GLB...")
             glb = o_voxel.postprocess.to_glb(
                 vertices            =   mesh.vertices,
                 faces               =   mesh.faces,
@@ -187,10 +187,10 @@ def process_images():
             )
             glb.export(output_path, extension_webp=True)
 
-            print(f"  ✓ Saved: {output_path}")
+            print(f"  OK Saved: {output_path}")
 
         except Exception as e:
-            print(f"  ✗ Failed: {e}")
+            print(f"  X Failed: {e}")
         finally:
             # Cleanup after each image (3D generation is memory-intensive)
             torch.cuda.empty_cache()
