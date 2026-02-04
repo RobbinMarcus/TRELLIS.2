@@ -9,6 +9,8 @@ class BiRefNet:
     def __init__(self, model_name: str = "ZhengPeng7/BiRefNet"):
         # Monkey-patch to fix transformers compatibility issue
         from transformers import modeling_utils
+        
+        # Patch 1: mark_tied_weights_as_initialized
         original_mark = getattr(modeling_utils.PreTrainedModel, 'mark_tied_weights_as_initialized', None)
 
         def patched_mark(self):
@@ -19,14 +21,30 @@ class BiRefNet:
 
         modeling_utils.PreTrainedModel.mark_tied_weights_as_initialized = patched_mark
 
+        # Patch 2: ContextManagers to avoid meta device initialization
+        # BiRefNet's remote code is incompatible with meta tensors (calls .item() on them).
+        # We replace ContextManagers to prevent transformers from enforcing any device context during init.
+        original_ContextManagers = modeling_utils.ContextManagers
+        
+        class NoOpContextManagers:
+            def __init__(self, contexts):
+                pass
+            def __enter__(self):
+                return []
+            def __exit__(self, *args):
+                pass
+        
+        modeling_utils.ContextManagers = NoOpContextManagers
+
         try:
             self.model = AutoModelForImageSegmentation.from_pretrained(
                 "ZhengPeng7/BiRefNet", trust_remote_code=True
             )
         finally:
-            # Restore original method
+            # Restore original methods
             if original_mark:
                 modeling_utils.PreTrainedModel.mark_tied_weights_as_initialized = original_mark
+            modeling_utils.ContextManagers = original_ContextManagers
 
         self.model.eval()
         self.transform_image = transforms.Compose(
